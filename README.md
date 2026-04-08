@@ -1,4 +1,4 @@
-# gmail-triage-agent
+# Email-triage-agent
 
 Standalone agent for a Gmail inbox that:
 
