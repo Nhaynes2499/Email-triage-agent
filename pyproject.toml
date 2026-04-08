@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gmail-triage-agent"
+version = "0.1.0"
+description = "AI-powered Gmail backfill, classification, and daily digest agent"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "google-api-python-client",
+  "google-auth",
+  "google-auth-oauthlib",
+  "openai",
+]
+
+[project.scripts]
+gmail-triage-agent = "gmail_triage_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
