@@ -65,3 +65,31 @@ class StoredEmail:
     summary: str
     suggested_action: str
 
+
+@dataclass(frozen=True)
+class DashboardEmail:
+    gmail_id: str
+    subject: str
+    sender: str
+    received_at: datetime
+    category: str
+    source: str
+    priority: str
+    needs_reply: bool
+    summary: str
+    suggested_action: str
+    snippet: str
+    confidence: float
+
+
+@dataclass(frozen=True)
+class DashboardOverview:
+    total_tracked: int
+    total_in_window: int
+    reply_needed_in_window: int
+    urgent_in_window: int
+    high_priority_in_window: int
+    client_in_window: int
+    jira_in_window: int
+    last_sync_at: str | None
+    last_history_id: str | None

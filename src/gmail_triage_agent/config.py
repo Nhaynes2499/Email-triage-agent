@@ -39,6 +39,10 @@ class Settings:
     openai_api_key: str | None
     openai_model: str
     daily_digest_recipient: str | None
+    dashboard_host: str
+    dashboard_port: int
+    dashboard_default_days: int
+    dashboard_default_limit: int
     smtp_host: str | None
     smtp_port: int
     smtp_username: str | None
@@ -67,6 +71,10 @@ class Settings:
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
             daily_digest_recipient=os.getenv("DAILY_DIGEST_RECIPIENT") or None,
+            dashboard_host=os.getenv("DASHBOARD_HOST", "127.0.0.1"),
+            dashboard_port=int(os.getenv("DASHBOARD_PORT", "8080")),
+            dashboard_default_days=int(os.getenv("DASHBOARD_DEFAULT_DAYS", "7")),
+            dashboard_default_limit=int(os.getenv("DASHBOARD_DEFAULT_LIMIT", "100")),
             smtp_host=os.getenv("SMTP_HOST") or None,
             smtp_port=int(os.getenv("SMTP_PORT", "587")),
             smtp_username=os.getenv("SMTP_USERNAME") or None,

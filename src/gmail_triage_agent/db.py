@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
+from datetime import timedelta
 import json
 from pathlib import Path
 import sqlite3
 from typing import Iterator
 
-from .models import ClassificationResult, EmailMessage, StoredEmail
+from .models import (
+    ClassificationResult,
+    DashboardEmail,
+    DashboardOverview,
+    EmailMessage,
+    StoredEmail,
+)
 
 
 class Database:
@@ -204,3 +211,108 @@ class Database:
                 """,
                 (target_date.isoformat(), subject, body, timestamp),
             )
+
+    def get_dashboard_overview(self, days: int = 7) -> DashboardOverview:
+        since = (datetime.now(timezone.utc) - timedelta(days=max(days, 1))).isoformat()
+        with self._connect() as connection:
+            total_tracked = int(connection.execute("SELECT COUNT(*) FROM emails").fetchone()[0])
+            window_counts = connection.execute(
+                """
+                SELECT
+                  COUNT(*) AS total_in_window,
+                  SUM(CASE WHEN needs_reply = 1 THEN 1 ELSE 0 END) AS reply_needed_in_window,
+                  SUM(CASE WHEN priority = 'urgent' THEN 1 ELSE 0 END) AS urgent_in_window,
+                  SUM(CASE WHEN priority IN ('urgent', 'high') THEN 1 ELSE 0 END) AS high_priority_in_window,
+                  SUM(CASE WHEN source = 'client' THEN 1 ELSE 0 END) AS client_in_window,
+                  SUM(CASE WHEN source = 'jira' THEN 1 ELSE 0 END) AS jira_in_window
+                FROM emails
+                WHERE received_at >= ?
+                """,
+                (since,),
+            ).fetchone()
+            last_sync = connection.execute(
+                "SELECT value, updated_at FROM sync_state WHERE key = 'last_history_id'"
+            ).fetchone()
+
+        return DashboardOverview(
+            total_tracked=total_tracked,
+            total_in_window=int(window_counts["total_in_window"] or 0),
+            reply_needed_in_window=int(window_counts["reply_needed_in_window"] or 0),
+            urgent_in_window=int(window_counts["urgent_in_window"] or 0),
+            high_priority_in_window=int(window_counts["high_priority_in_window"] or 0),
+            client_in_window=int(window_counts["client_in_window"] or 0),
+            jira_in_window=int(window_counts["jira_in_window"] or 0),
+            last_sync_at=None if last_sync is None else str(last_sync["updated_at"]),
+            last_history_id=None if last_sync is None else str(last_sync["value"]),
+        )
+
+    def list_recent_emails(
+        self,
+        *,
+        days: int = 7,
+        limit: int = 100,
+        category: str | None = None,
+        source: str | None = None,
+        priority: str | None = None,
+        needs_reply: bool | None = None,
+        search: str | None = None,
+    ) -> list[DashboardEmail]:
+        since = (datetime.now(timezone.utc) - timedelta(days=max(days, 1))).isoformat()
+        clauses = ["received_at >= ?"]
+        params: list[object] = [since]
+
+        if category:
+            clauses.append("category = ?")
+            params.append(category)
+        if source:
+            clauses.append("source = ?")
+            params.append(source)
+        if priority:
+            clauses.append("priority = ?")
+            params.append(priority)
+        if needs_reply is not None:
+            clauses.append("needs_reply = ?")
+            params.append(1 if needs_reply else 0)
+        if search:
+            clauses.append("(subject LIKE ? OR sender LIKE ? OR summary LIKE ? OR snippet LIKE ?)")
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term, search_term, search_term])
+
+        params.append(max(1, min(limit, 500)))
+        query = f"""
+            SELECT gmail_id, subject, sender, received_at, category, source, priority,
+                   needs_reply, summary, suggested_action, snippet, confidence
+            FROM emails
+            WHERE {' AND '.join(clauses)}
+            ORDER BY
+              CASE priority
+                WHEN 'urgent' THEN 0
+                WHEN 'high' THEN 1
+                WHEN 'normal' THEN 2
+                ELSE 3
+              END,
+              needs_reply DESC,
+              received_at DESC
+            LIMIT ?
+        """
+
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+
+        return [
+            DashboardEmail(
+                gmail_id=str(row["gmail_id"]),
+                subject=str(row["subject"]),
+                sender=str(row["sender"]),
+                received_at=datetime.fromisoformat(str(row["received_at"])),
+                category=str(row["category"]),
+                source=str(row["source"]),
+                priority=str(row["priority"]),
+                needs_reply=bool(row["needs_reply"]),
+                summary=str(row["summary"]),
+                suggested_action=str(row["suggested_action"]),
+                snippet=str(row["snippet"]),
+                confidence=float(row["confidence"]),
+            )
+            for row in rows
+        ]

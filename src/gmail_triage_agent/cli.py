@@ -4,6 +4,7 @@ import argparse
 from datetime import date
 
 from .config import Settings
+from .dashboard import serve_dashboard
 from .service import TriageService
 
 
@@ -20,6 +21,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     digest = subparsers.add_parser("digest", help="Build the digest for a given day")
     digest.add_argument("--date", dest="target_date", default=date.today().isoformat())
+
+    dashboard = subparsers.add_parser("dashboard", help="Run a lightweight local inbox dashboard")
+    dashboard.add_argument("--host", default=None)
+    dashboard.add_argument("--port", type=int, default=None)
 
     return parser
 
@@ -64,6 +69,18 @@ def main() -> None:
         print(body)
         print()
         print(f"sent={sent}")
+        return
+
+    if args.command == "dashboard":
+        host = args.host or settings.dashboard_host
+        port = args.port or settings.dashboard_port
+        serve_dashboard(
+            db_path=settings.db_path,
+            host=host,
+            port=port,
+            default_days=settings.dashboard_default_days,
+            default_limit=settings.dashboard_default_limit,
+        )
         return
 
     parser.error(f"Unknown command: {args.command}")

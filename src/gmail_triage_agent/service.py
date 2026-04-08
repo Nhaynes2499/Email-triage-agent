@@ -23,10 +23,16 @@ class TriageService:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.db = Database(settings.db_path)
-        self.gmail = GmailClient.from_settings(settings)
+        self._gmail: GmailClient | None = None
         self.classifier = EmailClassifier(settings)
         self.digest_builder = DailyDigestBuilder()
         self.notifier = DigestNotifier(settings)
+
+    @property
+    def gmail(self) -> GmailClient:
+        if self._gmail is None:
+            self._gmail = GmailClient.from_settings(self.settings)
+        return self._gmail
 
     def backfill(self, max_messages: int | None = None) -> SyncResult:
         limit = max_messages or self.settings.backfill_max_messages
